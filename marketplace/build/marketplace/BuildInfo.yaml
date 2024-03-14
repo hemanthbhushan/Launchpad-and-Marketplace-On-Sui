@@ -1,0 +1,29 @@
+---
+compiled_package_info:
+  package_name: marketplace
+  address_alias_instantiation:
+    common: 473a4338ab6c72b364a8a3d089ce752fc4ffbfd22a67151e5f006b624436d92d
+    marketplace: "0000000000000000000000000000000000000000000000000000000000000000"
+    std: "0000000000000000000000000000000000000000000000000000000000000001"
+    sui: "0000000000000000000000000000000000000000000000000000000000000002"
+  source_digest: 78F7E2E8CF085A7C65B8AC14AB772DC1FBDA23B7D7F1B73CCDCC0F1DA8599445
+  build_flags:
+    dev_mode: false
+    test_mode: false
+    generate_docs: false
+    install_dir: ~
+    force_recompilation: false
+    lock_file: "./Move.lock"
+    fetch_deps_only: false
+    skip_fetch_latest_git_deps: false
+    default_flavor: sui
+    default_edition: ~
+    deps_as_root: false
+    silence_warnings: false
+    warnings_are_errors: false
+    additional_named_addresses: {}
+    no_lint: false
+dependencies:
+  - MoveStdlib
+  - Sui
+  - common

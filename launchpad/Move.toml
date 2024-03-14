@@ -1,12 +1,11 @@
 [package]
 name = "launchpad"
 
-[dependencies.Sui]
+[dependencies]
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "mainnet-v1.16.2" }
-[dependencies.common]
-git = "https://github.com/MystenLabs/sui.git"
-subdir = "crates/sui-framework/packages/sui-framework"
-rev = "mainnet-v1.16.2" 
+common = { local = "./../common" }
+
 
 [addresses]
 launchpad = "0x0"
+
