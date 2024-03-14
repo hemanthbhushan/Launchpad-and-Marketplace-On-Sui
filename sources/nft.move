@@ -13,15 +13,17 @@ module moonpad::nft {
 
     use moonpad::witness::Witness as DelegatedWitness;
     use moonpad::frozen_publisher::{Self, FrozenPublisher};
-  
+    friend moonpad::moonpad;
     /// Witness used to authorize collection creation
     struct Witness has drop {}
+    
 
-
-    struct Nft<phantom C> has key, store {
+    
+    struct Nft<phantom C> has key,store{
         id: UID,
         name: string::String,
         url: Url,
+        description: string::String,
     }
 
     struct MintNftEvent has copy, drop {
@@ -32,6 +34,7 @@ module moonpad::nft {
     fun new_<C>(
         name: string::String,
         url: Url,
+        description: string::String,
         ctx: &mut TxContext,
     ): Nft<C> {
         let id = object::new(ctx);
@@ -41,7 +44,7 @@ module moonpad::nft {
             nft_type: type_name::into_string(type_name::get<C>()),
         });
 
-        Nft { id, name, url }
+        Nft { id, name, url , description}
     }
 
 
@@ -49,13 +52,14 @@ module moonpad::nft {
         _witness: DelegatedWitness<C>,
         name: string::String,
         url: Url,
+        description: string::String,
         ctx: &mut TxContext,
     ): Nft<C> {
-        new_(name, url, ctx)
+        new_(name, url,description, ctx)
     }
 
     public entry fun delete<C>(nft: Nft<C>) {
-        let Nft { id, name: _, url: _ } = nft;
+        let Nft { id, name: _, url: _ ,description :_} = nft;
         object::delete(id);
     }
 
