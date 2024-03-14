@@ -162,9 +162,7 @@ module marketplace::keepsake_marketplace {
     }
 
 
-    public(friend) fun getWitness(): Witness {
-        Witness {}
-    }
+
 
     // getter functions for contracts to get info about our marketplace.
     public fun owner(
