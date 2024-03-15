@@ -13,6 +13,7 @@ module common::nft {
 
     use common::witness::Witness as DelegatedWitness;
     use common::frozen_publisher::{Self, FrozenPublisher};
+    use common::utils;
     /// Witness used to authorize collection creation
     struct Witness has drop {}
     
@@ -46,14 +47,14 @@ module common::nft {
         Nft { id, name, url , description}
     }
 
-
-    public fun new<C>(
-        _witness: DelegatedWitness<C>,
+    public fun new<OTW: drop,C>(
+        _witness: OTW,
         name: string::String,
         url: Url,
         description: string::String,
         ctx: &mut TxContext,
     ): Nft<C> {
+        utils::assert_same_module<OTW, C>();
         new_(name, url,description, ctx)
     }
 
