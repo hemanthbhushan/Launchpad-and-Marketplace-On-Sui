@@ -213,21 +213,6 @@ module launchpad::moonpad {
     }
     
 
-    // /// Redeems NFT from `Warehouse` sequentially
-    // ///
-    // /// #### Panics
-    // ///
-    // /// Panics if `Warehouse` is empty.
-    // public fun redeem_nft<T: key + store>(
-    //     warehouse: &mut Warehouse<T>,
-    // ): T {
-    //     assert!(warehouse.total_deposited > 0, EEmpty);
-
-    //     let nft_id = dyn_vector::pop_back(&mut warehouse.nfts);
-    //     warehouse.total_deposited = warehouse.total_deposited - 1;
-
-    //     dof::remove(&mut warehouse.id, nft_id)
-    // }
 
     public entry fun mint_nft_and_store_admin(
         launchpad_data: &mut LaunchPadData , 
@@ -235,16 +220,25 @@ module launchpad::moonpad {
         name: String,
         url: ascii::String,
         description: String,
+        self_transfer : bool,
         ctx: &mut TxContext
         ){
            assert!(launchpad_data.admin == sender(ctx), 0);   
            let nft = nft::new<Witness , CREATOR>(Witness {},name , url::new_unsafe(url) , description, ctx);
-           let nft_id = object::id(&nft);
+
+           if(!self_transfer){
+             
+             let nft_id = object::id(&nft);
 
             vector::push_back(&mut launchpad_data.nfts, nft_id);
             launchpad_data.total_deposited = launchpad_data.total_deposited + 1;
+            
+            dof::add(&mut launchpad_data.id, nft_id, nft) 
+           }else{
+             transfer::public_transfer(nft , sender(ctx))
 
-            dof::add(&mut launchpad_data.id, nft_id, nft)    
+           }
+             
     }
      public entry fun buy_nft(
         launchpad_data: &mut LaunchPadData , 
