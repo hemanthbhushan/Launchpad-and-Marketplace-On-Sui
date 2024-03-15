@@ -13,6 +13,8 @@ module launchpad::moonpad {
     use sui::object::{Self, ID, UID};
     use sui::balance::{Self, Balance};
     use sui::table::{Self, Table};
+    use sui::dynamic_object_field as dof;
+    use sui::coin::{Self,Coin};
     use common::nft::{Self, Nft};
     use common::witness;
     use common::frozen_publisher;
@@ -21,6 +23,7 @@ module launchpad::moonpad {
 
     struct CREATOR has drop {}
     struct Witness has drop {}
+    // struct MOONPAD has drop {}
 
     struct LaunchPadCap has key {
         id: UID
@@ -52,7 +55,9 @@ module launchpad::moonpad {
         purchases: Table<address, u64>,
         fund_collected: Balance<SUI>,
         presale: Option<NFTPresaleInfo>,
-        public_sale_paused: bool
+        public_sale_paused: bool , 
+        nfts : vector<ID> ,
+        total_deposited : u64
     }
 
     fun init(ctx: &mut TxContext) {
@@ -61,6 +66,11 @@ module launchpad::moonpad {
 
     public entry fun initiate_launchpad(
         launchpad_cap: LaunchPadCap,
+        collection_name : String,
+        collection_symbol : String,
+        admin : address,
+        receiver: address , 
+        royality : u64,
         public_nft_price: u64,
         nft_per_user: u64,
         max_nft_limt: u64,
@@ -68,14 +78,13 @@ module launchpad::moonpad {
     ) {
         let LaunchPadCap { id } = launchpad_cap;
         object::delete(id);
-        let witness = witness::from_witness<CREATOR, Witness>(Witness {});
-        let collection = collection::create<CREATOR>(
-            witness,
+        let collection = collection::create<Witness ,CREATOR>(
+            Witness{},
+            collection_name ,
+            collection_symbol ,
             sender(ctx),
-            10000,
-            sender(ctx),
-            utf8(b"CREATOR"),
-            utf8(b"CRT"),
+            receiver , 
+            royality,
             ctx
         );
 
@@ -95,7 +104,9 @@ module launchpad::moonpad {
             purchases: table::new(ctx),
             fund_collected: balance::zero<SUI>(),
             presale: option::none(),
-            public_sale_paused: true
+            public_sale_paused: true,
+            nfts : vector::empty<ID>() ,
+            total_deposited : 0
         };
 
         transfer::public_share_object(collection);
@@ -148,6 +159,15 @@ module launchpad::moonpad {
         assert!(len > 0, 00);
         assert!(len == vector::length(&owner_percentage), 00);
         let i = 0;
+        let total_percentage = 0;
+
+        while (i < len) {
+            total_percentage =total_percentage + *vector::borrow(&owner_percentage , i);
+        };
+        // Ensure total percentage equals 100
+        assert!(total_percentage == 100, 100);
+
+        let i = 0;
         if (option::is_none(&launchpad_data.multi_owners)) {
             let multi_owners_temp = vec_map::empty<address, u64>();
             while (i < len) {
@@ -191,8 +211,25 @@ module launchpad::moonpad {
         assert!(launchpad_data.admin == sender(ctx), 0);
         let _ = option::extract(&mut launchpad_data.multi_owners);
     }
+    
 
-    public entry fun mint_nft_admin(
+    // /// Redeems NFT from `Warehouse` sequentially
+    // ///
+    // /// #### Panics
+    // ///
+    // /// Panics if `Warehouse` is empty.
+    // public fun redeem_nft<T: key + store>(
+    //     warehouse: &mut Warehouse<T>,
+    // ): T {
+    //     assert!(warehouse.total_deposited > 0, EEmpty);
+
+    //     let nft_id = dyn_vector::pop_back(&mut warehouse.nfts);
+    //     warehouse.total_deposited = warehouse.total_deposited - 1;
+
+    //     dof::remove(&mut warehouse.id, nft_id)
+    // }
+
+    public entry fun mint_nft_and_store_admin(
         launchpad_data: &mut LaunchPadData , 
         mint_cap : &mut MintCap,
         name: String,
@@ -201,40 +238,79 @@ module launchpad::moonpad {
         ctx: &mut TxContext
         ){
            assert!(launchpad_data.admin == sender(ctx), 0);   
-           let minted = nft::new<Witness , CREATOR>(Witness {},name , url::new_unsafe(url) , description, ctx);
+           let nft = nft::new<Witness , CREATOR>(Witness {},name , url::new_unsafe(url) , description, ctx);
+           let nft_id = object::id(&nft);
 
-           transfer::public_transfer(minted ,sender(ctx))
+            vector::push_back(&mut launchpad_data.nfts, nft_id);
+            launchpad_data.total_deposited = launchpad_data.total_deposited + 1;
+
+            dof::add(&mut launchpad_data.id, nft_id, nft)    
     }
-    public entry fun mint_nft(launchpad_data: &mut LaunchPadData , mint_cap : &mut MintCap , ctx: &mut TxContext){
-           
+     public entry fun buy_nft(
+        launchpad_data: &mut LaunchPadData , 
+        nft_id : ID ,
+        paid : &mut Coin<SUI> ,
+        ctx: &mut TxContext
+        ){
+           assert!(launchpad_data.admin == sender(ctx), 0);   
+           assert!(launchpad_data.total_deposited > 0, 0);
+
+           let coin =  coin::split<SUI>(paid, launchpad_data.price, ctx);
+           coin::put<SUI>( &mut launchpad_data.fund_collected, coin);
+           let (has , i) =  vector::index_of(&mut launchpad_data.nfts, &nft_id);
+           assert!(has, 0);
+           let nft_id = vector::swap_remove(&mut launchpad_data.nfts ,i );
+           launchpad_data.total_deposited = launchpad_data.total_deposited - 1;
+
+           let nft : Nft<CREATOR>  =  dof::remove(&mut launchpad_data.id, nft_id) ;
+           transfer::public_transfer(nft ,sender(ctx))
+    }
+
+    public entry fun redeem_funds(
+        launchpad_data: &mut LaunchPadData , 
+        ctx: &mut TxContext
+    ){
+         assert!(launchpad_data.admin == sender(ctx), 0);   
+         assert!(balance::value(&launchpad_data.fund_collected) > 0, 0);
+        let total_funds_collected_temp = balance::value(&launchpad_data.fund_collected);
+
+         if(option::is_some(&launchpad_data.multi_owners)){
+            let multi_owners = option::borrow_mut(&mut launchpad_data.multi_owners);
+            let len =  vec_map::size(multi_owners);
+            let i = 0;
+             while (i < len){
+                 let (owner_addr,percent) = vec_map::get_entry_by_idx(multi_owners , i);
+                  let split_amount = total_funds_collected_temp * *percent /100;
+                  let balance =  balance::split(&mut launchpad_data.fund_collected , split_amount);
+                  transfer::public_transfer(coin::from_balance( balance,ctx) , sender(ctx));
+                 i = i+ 1   
+             };
+          
+         }else{
+            transfer::public_transfer(coin::from_balance( balance::withdraw_all(&mut launchpad_data.fund_collected),ctx) , sender(ctx))
+         }
+       
     }
 
 
     public entry fun set_royality<T>(collection: &mut Collection<T>, royality: u64, ctx: &mut TxContext) {
-        collection::set_royality(collection, royality, ctx);
+        collection::set_royality<Witness , T>( Witness{}, collection, royality, ctx);
     }
 
     public entry fun set_collection_name<T>(collection: &mut Collection<T>, collection_name: String, ctx: &mut TxContext) {
-        collection::set_collection_name(collection, collection_name, ctx);
+        collection::set_collection_name<Witness , T>( Witness{},collection, collection_name, ctx);
     }
 
     public entry fun set_collection_symbol<T>(collection: &mut Collection<T>, collection_symbol: String, ctx: &mut TxContext) {
-        collection::set_collection_symbol(collection, collection_symbol, ctx);
+        collection::set_collection_symbol<Witness , T>( Witness{},collection, collection_symbol, ctx);
     }
 
     public entry fun set_royality_receiver<T>(collection: &mut Collection<T>, receiver: address, ctx: &mut TxContext) {
-        collection::set_royality_receiver(collection, receiver, ctx);
+        collection::set_royality_receiver<Witness , T>( Witness{},collection, receiver, ctx);
     }
 
     public entry fun change_admin<T>(collection: &mut Collection<T>, new_admin: address, ctx: &mut TxContext) {
-        collection::change_admin(collection, new_admin, ctx);
+        collection::change_admin<Witness , T>( Witness{},collection, new_admin, ctx);
     }
-
-    // public entry fun create(name: String, url: vector<u8>, description: String, ctx: &mut TxContext) {
-    //     let witness = witness::from_witness<CREATOR, Witness>(Witness {});
-    //     let minted = nft::new<CREATOR>(witness, name, url::new_unsafe_from_bytes(url), description, ctx);
-
-    //     transfer::public_transfer(minted, sender(ctx))
-    // }
 
 }

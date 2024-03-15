@@ -10,7 +10,7 @@ module common::collection {
     use sui::object::{Self, UID, ID};
     use sui::tx_context::{sender ,TxContext};
     use sui::dynamic_field as df;
-
+    use common::utils;
     use common::witness::Witness as DelegatedWitness;
     use common::frozen_publisher::{Self, FrozenPublisher};
 
@@ -35,16 +35,17 @@ module common::collection {
         type_name: TypeName,
     }
 
-
-    public fun create<T>(
-        _witness: DelegatedWitness<T>,
-        receiver: address , 
-        royality : u64,
-        admin : address,
+   
+    public fun create<OTW: drop, T>(
+        _witness: OTW,
         collection_name: string::String,
         collection_symbol: string::String,
+        admin : address,
+        receiver: address , 
+        royality : u64,
         ctx: &mut TxContext,
     ): Collection<T> {
+        utils::assert_same_module<OTW, T>();
         create_( receiver ,royality,admin,collection_name,collection_symbol ,ctx)
     }
 
@@ -66,26 +67,56 @@ module common::collection {
         Collection { id,receiver , royality ,collection_name , collection_symbol,admin }
     }
 
-    public fun set_royality<T>(collection:&mut Collection<T> ,royality: u64 , ctx: &mut TxContext){
+    public fun set_royality<OTW: drop, T>(
+        _witness: OTW,
+        collection:&mut Collection<T> ,
+        royality: u64 , 
+        ctx: &mut TxContext
+        ){
+        utils::assert_same_module<OTW, T>();
         assert(collection.admin == sender(ctx), 0);
              collection.royality = royality;
     }
 
-    public fun set_collection_name<T>( collection:&mut Collection<T> ,collection_name: String , ctx: &mut TxContext){
+    public fun set_collection_name<OTW: drop, T>(
+        _witness: OTW,
+        collection:&mut Collection<T> ,
+        collection_name: String , 
+        ctx: &mut TxContext
+        ){
+        utils::assert_same_module<OTW, T>();
         assert(collection.admin == sender(ctx), 0);
          collection.collection_name = collection_name;
     }
      
-    public fun set_collection_symbol<T>( collection:&mut Collection<T> ,collection_symbol: String , ctx: &mut TxContext){
+    public fun set_collection_symbol<OTW: drop, T>(
+        _witness: OTW,
+        collection:&mut Collection<T> ,
+        collection_symbol: String , 
+        ctx: &mut TxContext
+        ){
+        utils::assert_same_module<OTW, T>();
         assert(collection.admin == sender(ctx), 0);
          collection.collection_symbol = collection_symbol;
     }
      
-    public fun set_royality_receiver<T>( collection:&mut Collection<T> ,receiver: address , ctx: &mut TxContext){
+    public fun set_royality_receiver<OTW: drop, T>(
+        _witness: OTW,
+        collection:&mut Collection<T> ,
+        receiver: address , 
+        ctx: &mut TxContext
+        ){
+        utils::assert_same_module<OTW, T>();
         assert(collection.admin == sender(ctx), 0);
          collection.receiver = receiver;
     }
-    public fun change_admin<T>( collection:&mut Collection<T> ,new_admin: address , ctx: &mut TxContext){
+    public fun change_admin<OTW: drop, T>(
+        _witness: OTW,
+        collection:&mut Collection<T> ,
+        new_admin: address , 
+        ctx: &mut TxContext
+        ){
+        utils::assert_same_module<OTW, T>();
         assert(collection.admin == sender(ctx), 0);
          collection.admin = new_admin;
     }

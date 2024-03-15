@@ -1,16 +1,16 @@
 module common::collection {
     use std::type_name::{Self, TypeName};
     use std::option::Option;
-    use std::string;
+    use std::string::{Self,String};
 
     use sui::event;
     use sui::package::{Self, Publisher};
     use sui::display::{Self, Display};
     use sui::transfer;
     use sui::object::{Self, UID, ID};
-    use sui::tx_context::TxContext;
+    use sui::tx_context::{sender ,TxContext};
     use sui::dynamic_field as df;
-
+    use common::utils;
     use common::witness::Witness as DelegatedWitness;
     use common::frozen_publisher::{Self, FrozenPublisher};
 
@@ -25,6 +25,7 @@ module common::collection {
         id: UID,
         collection_name : string::String,
         collection_symbol : string::String,
+        admin : address,
         receiver: address , 
         royality : u64,
     }
@@ -34,21 +35,24 @@ module common::collection {
         type_name: TypeName,
     }
 
-
-    public fun create<T>(
-        _witness: DelegatedWitness<T>,
-        receiver: address , 
-        royality : u64,
+   
+    public fun create<OTW: drop, T>(
+        _witness: OTW,
         collection_name: string::String,
         collection_symbol: string::String,
+        admin : address,
+        receiver: address , 
+        royality : u64,
         ctx: &mut TxContext,
     ): Collection<T> {
-        create_( receiver ,royality,collection_name,collection_symbol ,ctx)
+        utils::assert_same_module<OTW, T>();
+        create_( receiver ,royality,admin,collection_name,collection_symbol ,ctx)
     }
 
     fun create_<T>( 
         receiver: address , 
         royality : u64,
+        admin : address,
         collection_name: string::String,
         collection_symbol: string::String,
         ctx: &mut TxContext
@@ -60,29 +64,69 @@ module common::collection {
             type_name: type_name::get<T>(),
         });
 
-        Collection { id,receiver , royality ,collection_name , collection_symbol}
+        Collection { id,receiver , royality ,collection_name , collection_symbol,admin }
     }
+
+    public fun set_royality<OTW: drop, T>(
+        _witness: OTW,
+        collection:&mut Collection<T> ,
+        royality: u64 , 
+        ctx: &mut TxContext
+        ){
+        utils::assert_same_module<OTW, T>();
+        assert(collection.admin == sender(ctx), 0);
+             collection.royality = royality;
+    }
+
+    public fun set_collection_name<OTW: drop, T>(
+        _witness: OTW,
+        collection:&mut Collection<T> ,
+        collection_name: String , 
+        ctx: &mut TxContext
+        ){
+        utils::assert_same_module<OTW, T>();
+        assert(collection.admin == sender(ctx), 0);
+         collection.collection_name = collection_name;
+    }
+     
+    public fun set_collection_symbol<OTW: drop, T>(
+        _witness: OTW,
+        collection:&mut Collection<T> ,
+        collection_symbol: String , 
+        ctx: &mut TxContext
+        ){
+        utils::assert_same_module<OTW, T>();
+        assert(collection.admin == sender(ctx), 0);
+         collection.collection_symbol = collection_symbol;
+    }
+     
+    public fun set_royality_receiver<OTW: drop, T>(
+        _witness: OTW,
+        collection:&mut Collection<T> ,
+        receiver: address , 
+        ctx: &mut TxContext
+        ){
+        utils::assert_same_module<OTW, T>();
+        assert(collection.admin == sender(ctx), 0);
+         collection.receiver = receiver;
+    }
+    public fun change_admin<OTW: drop, T>(
+        _witness: OTW,
+        collection:&mut Collection<T> ,
+        new_admin: address , 
+        ctx: &mut TxContext
+        ){
+        utils::assert_same_module<OTW, T>();
+        assert(collection.admin == sender(ctx), 0);
+         collection.admin = new_admin;
+    }
+
 
 
     public fun get_receiver_address<C>(collection: &Collection<C>): address {
         collection.receiver
     }
 
-    public fun borrow_uid_mut<C>(
-        _witness: DelegatedWitness<C>,
-        collection: &mut Collection<C>,
-    ): &mut UID {
-        &mut collection.id
-    }
-
-
-    public entry fun delete<C>(collection: Collection<C>) {
-        let Collection { id ,receiver: _, royality: _ ,collection_name,collection_symbol } = collection;
-        object::delete(id);
-    }
-
-           
- 
     public fun new_display<T>(
         _witness: DelegatedWitness<T>,
         pub: &FrozenPublisher,

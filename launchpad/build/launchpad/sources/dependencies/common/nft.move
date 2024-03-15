@@ -58,11 +58,6 @@ module common::nft {
         new_(name, url,description, ctx)
     }
 
-    public entry fun delete<C>(nft: Nft<C>) {
-        let Nft { id, name: _, url: _ ,description :_} = nft;
-        object::delete(id);
-    }
-
 
     public fun name<C>(nft: &Nft<C>): &string::String {
         &nft.name
