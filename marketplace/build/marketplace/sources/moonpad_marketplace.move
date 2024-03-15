@@ -1,7 +1,6 @@
-// Copyright (c) 2022, Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
 
-module marketplace::keepsake_marketplace {
+
+module marketplace::moonpad_marketplace {
     use std::option::{Self, Option};
     use std::type_name::{Self, TypeName};
     use sui::clock::{Self, Clock};
@@ -45,7 +44,7 @@ module marketplace::keepsake_marketplace {
     }
 
     // OTW
-    struct KEEPSAKE_MARKETPLACE has drop {}
+    struct MOONPAD_MARKETPLACE has drop {}
 
     struct Witness has drop {}
 
@@ -81,7 +80,7 @@ module marketplace::keepsake_marketplace {
         type_name: TypeName,
     }
 
-    fun init(otw: KEEPSAKE_MARKETPLACE, ctx: &mut TxContext) {
+    fun init(otw: MOONPAD_MARKETPLACE, ctx: &mut TxContext) {
         package::claim_and_keep(otw, ctx);
         let id = object::new(ctx);
 
@@ -162,9 +161,7 @@ module marketplace::keepsake_marketplace {
     }
 
 
-    public(friend) fun getWitness(): Witness {
-        Witness {}
-    }
+
 
     // getter functions for contracts to get info about our marketplace.
     public fun owner(

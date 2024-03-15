@@ -85,15 +85,15 @@ module launchpad::moonpad{
 
         // Claim the `Publisher` for the package!
   
-        let publisher = package::claim(otw, ctx);
-        let frozen_publisher = frozen_publisher::new(publisher , ctx);  
-        let witness = witness::from_witness<CREATOR,Witness>(Witness{});
-        let display  = nft::new_display<CREATOR>(witness , &frozen_publisher , ctx);
+        // let publisher = package::claim(otw, ctx);
+        // let frozen_publisher = frozen_publisher::new(publisher , ctx);  
+        // let witness = witness::from_witness<CREATOR,Witness>(Witness{});
+        // let display  = nft::new_display<CREATOR>(witness , &frozen_publisher , ctx);
           
-        display::add_multiple<Nft<CREATOR>>(&mut display, keys, values);
-        display::update_version(&mut display);
-        frozen_publisher::public_freeze_object(frozen_publisher);
-        transfer::public_transfer(display, sender(ctx));
+        // display::add_multiple<Nft<CREATOR>>(&mut display, keys, values);
+        // display::update_version(&mut display);
+        // frozen_publisher::public_freeze_object(frozen_publisher);
+        // transfer::public_transfer(display, sender(ctx));
         transfer::public_share_object(collection)
     }
 

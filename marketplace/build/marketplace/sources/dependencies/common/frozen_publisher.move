@@ -24,7 +24,6 @@ module common::frozen_publisher {
         inner: Publisher,
     }
 
-    #[allow(unused_function)]
     fun init(otw: FROZEN_PUBLISHER, ctx: &mut TxContext) {
         let publisher = package::claim(otw, ctx);
         let display = display::new<FrozenPublisher>(&publisher, ctx);

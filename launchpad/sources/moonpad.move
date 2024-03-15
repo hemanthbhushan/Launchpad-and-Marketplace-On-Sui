@@ -1,4 +1,4 @@
-module launchpad::moonpad{
+module launchpad::moonpad {
     use std::string::{String,utf8};
     use std::option::{Self,Option};
     use sui::tx_context::{TxContext,sender};
@@ -85,15 +85,15 @@ module launchpad::moonpad{
 
         // Claim the `Publisher` for the package!
   
-        let publisher = package::claim(otw, ctx);
-        let frozen_publisher = frozen_publisher::new(publisher , ctx);  
-        let witness = witness::from_witness<CREATOR,Witness>(Witness{});
-        let display  = nft::new_display<CREATOR>(witness , &frozen_publisher , ctx);
+        // let publisher = package::claim(otw, ctx);
+        // let frozen_publisher = frozen_publisher::new(publisher , ctx);  
+        // let witness = witness::from_witness<CREATOR,Witness>(Witness{});
+        // let display  = nft::new_display<CREATOR>(witness , &frozen_publisher , ctx);
           
-        display::add_multiple<Nft<CREATOR>>(&mut display, keys, values);
-        display::update_version(&mut display);
-        frozen_publisher::public_freeze_object(frozen_publisher);
-        transfer::public_transfer(display, sender(ctx));
+        // display::add_multiple<Nft<CREATOR>>(&mut display, keys, values);
+        // display::update_version(&mut display);
+        // frozen_publisher::public_freeze_object(frozen_publisher);
+        // transfer::public_transfer(display, sender(ctx));
         transfer::public_share_object(collection)
     }
 
@@ -104,9 +104,5 @@ module launchpad::moonpad{
        
         transfer::public_transfer(minted,sender(ctx))
     }
-
-
-
-    
 
 }
