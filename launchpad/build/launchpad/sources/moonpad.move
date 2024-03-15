@@ -64,6 +64,7 @@ module launchpad::moonpad {
     fun init(ctx: &mut TxContext) {
         transfer::transfer(LaunchPadCap { id: object::new(ctx) }, sender(ctx))
     }
+    
    #[lint_allow(share_owned)]
     public entry fun initiate_launchpad(
         launchpad_cap: LaunchPadCap,
@@ -276,7 +277,6 @@ module launchpad::moonpad {
                   transfer::public_transfer(coin::from_balance( balance,ctx) , *owner_addr);
                  i = i+ 1   
              };
-          
          }else{
             transfer::public_transfer(coin::from_balance( balance::withdraw_all(&mut launchpad_data.fund_collected),ctx) , sender(ctx))
          }
