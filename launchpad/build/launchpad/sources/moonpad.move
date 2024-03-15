@@ -223,7 +223,8 @@ module launchpad::moonpad {
         self_transfer : bool,
         ctx: &mut TxContext
         ){
-           assert!(launchpad_data.admin == sender(ctx), 0);   
+           assert!(launchpad_data.admin == sender(ctx), 0);
+           assert!(mint_cap.current + 1 <= mint_cap.max , 00 );   
            let nft = nft::new<Witness , CREATOR>(Witness {},name , url::new_unsafe(url) , description, ctx);
 
            if(!self_transfer){
@@ -237,7 +238,8 @@ module launchpad::moonpad {
            }else{
              transfer::public_transfer(nft , sender(ctx))
 
-           }
+           };
+           mint_cap.current = mint_cap.current + 1 ;
              
     }
      public entry fun buy_nft(
