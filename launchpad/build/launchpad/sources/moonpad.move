@@ -1,5 +1,5 @@
 module launchpad::moonpad {
-    use std::string::{String, utf8};
+    use std::string::String;
     use std::ascii;
     use std::option::{Self, Option};
     use std::vector;
@@ -7,8 +7,8 @@ module launchpad::moonpad {
     use sui::sui::SUI;
     use sui::url;
     use sui::transfer;
-    use sui::package;
-    use sui::display::{Self, Display};
+    // use sui::package;
+    // use sui::display::{Self, Display};
     use sui::vec_map::{Self, VecMap};
     use sui::object::{Self, ID, UID};
     use sui::balance::{Self, Balance};
@@ -16,9 +16,10 @@ module launchpad::moonpad {
     use sui::dynamic_object_field as dof;
     use sui::coin::{Self,Coin};
     use common::nft::{Self, Nft};
-    use common::witness;
-    use common::frozen_publisher;
+    // use common::witness;
+    // use common::frozen_publisher;
     use common::collection::{Self, Collection};
+    use common::utils;
  
 
     struct CREATOR has drop {}
@@ -51,7 +52,7 @@ module launchpad::moonpad {
         admin: address,
         price: u64,
         nft_per_user : u64,
-        multi_owners: Option<VecMap<address, u64>>,
+        multi_owners: Option<VecMap<address, u16>>,
         purchases: Table<address, u64>,
         fund_collected: Balance<SUI>,
         presale: Option<NFTPresaleInfo>,
@@ -63,12 +64,11 @@ module launchpad::moonpad {
     fun init(ctx: &mut TxContext) {
         transfer::transfer(LaunchPadCap { id: object::new(ctx) }, sender(ctx))
     }
-
+   #[lint_allow(share_owned)]
     public entry fun initiate_launchpad(
         launchpad_cap: LaunchPadCap,
         collection_name : String,
         collection_symbol : String,
-        admin : address,
         receiver: address , 
         royality : u64,
         public_nft_price: u64,
@@ -124,6 +124,7 @@ module launchpad::moonpad {
         max_nfts: u64,
         ctx: &mut TxContext
     ) {
+        assert!(launchpad_data.admin == sender(ctx), 0);
         assert!(option::is_none(&launchpad_data.presale),00);
         let presale_info = NFTPresaleInfo {
             start_time,
@@ -151,25 +152,18 @@ module launchpad::moonpad {
     public entry fun set_multiple_owners(
         launchpad_data: &mut LaunchPadData,
         owner_addr: vector<address>,
-        owner_percentage: vector<u64>,
+        owner_percentage: vector<u16>,
         ctx: &mut TxContext
     ) {
         assert!(launchpad_data.admin == sender(ctx), 0);
         let len = vector::length(&owner_addr);
         assert!(len > 0, 00);
         assert!(len == vector::length(&owner_percentage), 00);
-        let i = 0;
-        let total_percentage = 0;
-
-        while (i < len) {
-            total_percentage =total_percentage + *vector::borrow(&owner_percentage , i);
-        };
-        // Ensure total percentage equals 100
-        assert!(total_percentage == 100, 100);
+     
 
         let i = 0;
         if (option::is_none(&launchpad_data.multi_owners)) {
-            let multi_owners_temp = vec_map::empty<address, u64>();
+            let multi_owners_temp = vec_map::empty<address, u16>();
             while (i < len) {
                 let owner_addr_temp = vector::pop_back(&mut owner_addr);
                 let owner_percent_temp = vector::pop_back(&mut owner_percentage);
@@ -186,19 +180,21 @@ module launchpad::moonpad {
                 vec_map::insert(multi_owners_temp, owner_addr_temp, owner_percent_temp);
                 i = i + 1
             }
-        }
+        };
+        let shares = option::borrow(&launchpad_data.multi_owners);
+        assert_total_shares(shares)
     }
 
     public entry fun edit_multi_owners_percentage(
         launchpad_data: &mut LaunchPadData,
         owner_addr: address,
-        owner_percentage: u64,
+        owner_percentage: u16,
         ctx: &mut TxContext
     ) {
         assert!(launchpad_data.admin == sender(ctx), 0);
         let multi_owners_temp = option::borrow_mut(&mut launchpad_data.multi_owners);
         let val = vec_map::get(multi_owners_temp, &owner_addr);
-        val = &mut owner_percentage;
+        val = &owner_percentage;
     }
 
     public entry fun remove_multi_owner(launchpad_data: &mut LaunchPadData, owner_addr: address, ctx: &mut TxContext) {
@@ -228,7 +224,6 @@ module launchpad::moonpad {
            let nft = nft::new<Witness , CREATOR>(Witness {},name , url::new_unsafe(url) , description, ctx);
 
            if(!self_transfer){
-             
              let nft_id = object::id(&nft);
 
             vector::push_back(&mut launchpad_data.nfts, nft_id);
@@ -253,7 +248,7 @@ module launchpad::moonpad {
 
            let coin =  coin::split<SUI>(paid, launchpad_data.price, ctx);
            coin::put<SUI>( &mut launchpad_data.fund_collected, coin);
-           let (has , i) =  vector::index_of(&mut launchpad_data.nfts, &nft_id);
+           let (has , i) =  vector::index_of(&launchpad_data.nfts, &nft_id);
            assert!(has, 0);
            let nft_id = vector::swap_remove(&mut launchpad_data.nfts ,i );
            launchpad_data.total_deposited = launchpad_data.total_deposited - 1;
@@ -276,9 +271,9 @@ module launchpad::moonpad {
             let i = 0;
              while (i < len){
                  let (owner_addr,percent) = vec_map::get_entry_by_idx(multi_owners , i);
-                  let split_amount = total_funds_collected_temp * *percent /100;
+                  let split_amount = total_funds_collected_temp * (*percent as u64) /100;
                   let balance =  balance::split(&mut launchpad_data.fund_collected , split_amount);
-                  transfer::public_transfer(coin::from_balance( balance,ctx) , sender(ctx));
+                  transfer::public_transfer(coin::from_balance( balance,ctx) , *owner_addr);
                  i = i+ 1   
              };
           
@@ -307,6 +302,23 @@ module launchpad::moonpad {
 
     public entry fun change_admin<T>(collection: &mut Collection<T>, new_admin: address, ctx: &mut TxContext) {
         collection::change_admin<Witness , T>( Witness{},collection, new_admin, ctx);
+    }
+
+    fun assert_total_shares(shares: &VecMap<address, u16>) {
+        let bps_total = 0;
+
+        if (vec_map::is_empty(shares)) {
+            return
+        };
+
+        let i = 0;
+        while (i < vec_map::size(shares)) {
+            let (_, share) = vec_map::get_entry_by_idx(shares, i);
+            bps_total = bps_total + *share;
+            i = i + 1;
+        };
+
+        assert!(bps_total == utils::bps(), 00);
     }
 
 }
