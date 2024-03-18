@@ -127,32 +127,5 @@ module common::collection {
         collection.receiver
     }
 
-    public fun new_display<T>(
-        _witness: DelegatedWitness<T>,
-        pub: &FrozenPublisher,
-        ctx: &mut TxContext,
-    ): Display<Collection<T>> {
-        let display =
-            frozen_publisher::new_display<Witness, Collection<T>>(Witness {}, pub, ctx);
-
-        display::add(&mut display, string::utf8(b"collection_name"), string::utf8(b"{collection_name}"));
-        display::add(&mut display, string::utf8(b"Collection_symbol"), string::utf8(b"{collection_symbol}"));
-
-        display
-    }
-
-    // === Test-Only ===
-
-    #[test_only]
-    public fun test_create_with_mint_cap<T>(
-        supply: Option<u64>,
-        ctx: &mut TxContext,
-    ): (Collection<T>, MintCap<T>) {
-        let collection = create_(ctx);
-        let mint_cap = mint_cap::test_create_mint_cap(
-            object::id(&collection), supply, ctx
-        );
-
-        (collection, mint_cap)
-    }
+  
 }

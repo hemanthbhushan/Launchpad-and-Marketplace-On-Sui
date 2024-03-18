@@ -137,7 +137,7 @@ module marketplace::moonpad_marketplace {
     
     public entry fun buy<T>(
         marketplace: &mut Marketplace,
-        collection: &Collection<T>,
+        collection: &mut Collection<T>,
         listing_id: ID,
         paid: Coin<SUI>,
         ctx: &mut TxContext
