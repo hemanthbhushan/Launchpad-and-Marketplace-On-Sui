@@ -1,22 +1,11 @@
 module common::collection {
     use std::type_name::{Self, TypeName};
-    use std::option::Option;
     use std::string::{Self,String};
 
     use sui::event;
-    use sui::package::{Self, Publisher};
-    use sui::display::{Self, Display};
-    use sui::transfer;
     use sui::object::{Self, UID, ID};
     use sui::tx_context::{sender ,TxContext};
-    use sui::dynamic_field as df;
     use common::utils;
-    use common::witness::Witness as DelegatedWitness;
-    use common::frozen_publisher::{Self, FrozenPublisher};
-
-    const EUndefinedDomain: u64 = 1;
-
-    const EExistingDomain: u64 = 2;
 
     struct Witness has drop {}
 
@@ -74,7 +63,7 @@ module common::collection {
         ctx: &mut TxContext
         ){
         utils::assert_same_module<OTW, T>();
-        assert(collection.admin == sender(ctx), 0);
+        assert!(collection.admin == sender(ctx), 0);
              collection.royality = royality;
     }
 
@@ -85,7 +74,7 @@ module common::collection {
         ctx: &mut TxContext
         ){
         utils::assert_same_module<OTW, T>();
-        assert(collection.admin == sender(ctx), 0);
+        assert!(collection.admin == sender(ctx), 0);
          collection.collection_name = collection_name;
     }
      
@@ -96,7 +85,7 @@ module common::collection {
         ctx: &mut TxContext
         ){
         utils::assert_same_module<OTW, T>();
-        assert(collection.admin == sender(ctx), 0);
+        assert!(collection.admin == sender(ctx), 0);
          collection.collection_symbol = collection_symbol;
     }
      
@@ -107,7 +96,7 @@ module common::collection {
         ctx: &mut TxContext
         ){
         utils::assert_same_module<OTW, T>();
-        assert(collection.admin == sender(ctx), 0);
+        assert!(collection.admin == sender(ctx), 0);
          collection.receiver = receiver;
     }
     public fun change_admin<OTW: drop, T>(
@@ -117,7 +106,7 @@ module common::collection {
         ctx: &mut TxContext
         ){
         utils::assert_same_module<OTW, T>();
-        assert(collection.admin == sender(ctx), 0);
+        assert!(collection.admin == sender(ctx), 0);
          collection.admin = new_admin;
     }
 

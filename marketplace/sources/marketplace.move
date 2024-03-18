@@ -3,37 +3,19 @@
 module marketplace::moonpad_marketplace {
     use std::option::{Self, Option};
     use std::type_name::{Self, TypeName};
-    use sui::clock::{Self, Clock};
     
     use sui::tx_context::{Self,sender, TxContext};
     use sui::object::{Self, UID, ID};
     use sui::transfer;
     use sui::event;
     use sui::dynamic_object_field as dof;
-    use sui::coin::{Self, Coin};
+    use sui::coin::Coin;
     use sui::sui::SUI;
     use sui::balance::{Self, Balance};
     use sui::package;
 
-    use common::nft::{Self, Nft};
+    use common::nft::Nft;
     use common::collection::{Self ,Collection};
-
-
-    
-    const MaxFee: u16 = 2000; // 20%! Way too high, this is mostly to prevent accidents, like adding an extra 0
-    const MaxWalletFee: u16 = 125;
-
-    // For when amount paid does not match the expected.
-    const EAmountIncorrect: u64 = 135289670000;
-    // For when someone tries to delist without ownership.
-    const ENotOwner: u64 = 135289670000 + 1;
-    // For when someone tries to use fallback functions for a standardized NFT.
-    const EMustUseStandard: u64 = 135289670000 + 2;
-    const EMustNotUseStandard: u64 = 135289670000 + 3;
-    // For auctions
-    const ETooLate: u64 = 135289670000 + 100;
-    const ETooEarly: u64 = 135289670000 + 101;
-    const ENoBid: u64 = 135289670000 + 102;
 
     struct Marketplace has key {
         id: UID,
@@ -143,7 +125,7 @@ module marketplace::moonpad_marketplace {
         ctx: &mut TxContext
     ){
         let listing = dof::remove<ID, Listing<T>>(&mut marketplace.id, listing_id);
-        let Listing { id, item_id, ask, owner, seller_wallet } = listing;
+        let Listing { id, item_id, ask, owner :_, seller_wallet : _ } = listing;
         let item = dof::remove<ID, Nft<T>>(&mut marketplace.id, item_id);
         object::delete(id);
 

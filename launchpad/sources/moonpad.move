@@ -16,9 +16,8 @@ module launchpad::moonpad {
     use sui::coin::{Self,Coin};
     use common::nft::{Self, Nft};
     use common::collection::{Self, Collection};
-    use common::utils;
  
-
+//Nft cllection name
     struct CREATOR has drop {}
     struct Witness has drop {}
 
@@ -28,33 +27,33 @@ module launchpad::moonpad {
 
     struct NFTPresaleInfo has store {
         start_time: u64,
-        expired_time: u64,
-        current_nft: u64,
-        price_per_item: u64,
-        whitelisted_users: vector<address>,
+        end_time: u64,
+        current_minted: u64,
+        price_per_nft: u64,
+        whitelisted_buyers: vector<address>,
         max_nfts: u64,
-        pre_sale_paused: bool
+        is_paused: bool
     }
 
     struct MintCap has key {
         id: UID,
-        for: ID,
-        max: u64,
-        current: u64,
+        for_collection_id: ID,
+        max_mintable: u64,
+        current_minted: u64,
     }
 
     struct LaunchPadData has key {
         id: UID,
         admin: address,
-        price: u64,
-        nft_per_user : u64,
-        multi_owners: Option<VecMap<address, u16>>,
-        purchases: Table<address, u64>,
-        fund_collected: Balance<SUI>,
+        price_per_nft: u64,
+        max_nft_per_user : u64,
+        co_owners: Option<VecMap<address, u16>>,
+        user_purchase_counts: Table<address, u64>,
+        total_funds_collected: Balance<SUI>,
         presale: Option<NFTPresaleInfo>,
-        public_sale_paused: bool , 
-        nfts : vector<ID> ,
-        total_deposited : u64
+        is_public_sale_paused: bool , 
+        nft_ids : vector<ID> ,
+        total_nfts_deposited : u64
     }
 
     fun init(ctx: &mut TxContext) {
@@ -69,7 +68,7 @@ module launchpad::moonpad {
         receiver: address , 
         royality : u64,
         public_nft_price: u64,
-        nft_per_user: u64,
+        max_nft_per_user: u64,
         max_nft_limt: u64,
         ctx: &mut TxContext
     ) {
@@ -87,23 +86,23 @@ module launchpad::moonpad {
 
         let mint_cap = MintCap { 
                 id: object::new(ctx) , 
-                for: object::id(&collection),
-                max: max_nft_limt,
-                current: 0,
+                for_collection_id: object::id(&collection),
+                max_mintable: max_nft_limt,
+                current_minted: 0,
         };
 
         let launchpadData = LaunchPadData {
             id: object::new(ctx),
             admin: sender(ctx),
-            price: public_nft_price,
-            nft_per_user,
-            multi_owners: option::none(),
-            purchases: table::new(ctx),
-            fund_collected: balance::zero<SUI>(),
+            price_per_nft: public_nft_price,
+            max_nft_per_user,
+            co_owners: option::none(),
+            user_purchase_counts: table::new(ctx),
+            total_funds_collected: balance::zero<SUI>(),
             presale: option::none(),
-            public_sale_paused: true,
-            nfts : vector::empty<ID>() ,
-            total_deposited : 0
+            is_public_sale_paused: true,
+            nft_ids : vector::empty<ID>() ,
+            total_nfts_deposited : 0
         };
 
         transfer::public_share_object(collection);
@@ -115,9 +114,9 @@ module launchpad::moonpad {
     public entry fun set_presale(
         launchpad_data: &mut LaunchPadData,
         start_time: u64,
-        expired_time: u64,
-        price_per_item: u64,
-        whitelisted_users: vector<address>,
+        end_time: u64,
+        price_per_nft: u64,
+        whitelisted_buyers: vector<address>,
         max_nfts: u64,
         ctx: &mut TxContext
     ) {
@@ -126,12 +125,12 @@ module launchpad::moonpad {
         assert!(option::is_none(&launchpad_data.presale),00);
         let presale_info = NFTPresaleInfo {
             start_time,
-            expired_time,
-            current_nft: 0,
-            price_per_item,
-            whitelisted_users,
+            end_time,
+            current_minted: 0,
+            price_per_nft,
+            whitelisted_buyers,
             max_nfts,
-            pre_sale_paused: true
+            is_paused: true
         };
 
         option::fill(&mut launchpad_data.presale, presale_info);
@@ -139,99 +138,101 @@ module launchpad::moonpad {
 
     public entry fun launch_pre_sale(launchpad_data: &mut LaunchPadData, ctx: &mut TxContext) {
         assert!(launchpad_data.admin == sender(ctx), 0);
-        option::borrow_mut(&mut launchpad_data.presale).pre_sale_paused = false
+        assert!(vector::length(&launchpad_data.nft_ids) > 0, 0 );
+        option::borrow_mut(&mut launchpad_data.presale).is_paused = false
     }
 
     public entry fun launch_public_sale(launchpad_data: &mut LaunchPadData, ctx: &mut TxContext) {
         assert!(launchpad_data.admin == sender(ctx), 0);
-        launchpad_data.public_sale_paused = false
+        assert!(vector::length(&launchpad_data.nft_ids) > 0, 0 );
+        launchpad_data.is_public_sale_paused = false
     }
 
-    public entry fun set_multiple_owners(
+    public entry fun set_co_owners(
         launchpad_data: &mut LaunchPadData,
-        owner_addr: vector<address>,
-        owner_percentages: vector<u16>,
+        new_owners: vector<address>,
+        owner_shares: vector<u16>,
         ctx: &mut TxContext
     ) {
         let admin = sender(ctx);
         assert!(launchpad_data.admin == admin, 0);
-        let len = vector::length(&owner_addr);
+        let len : u64 = vector::length(&new_owners);
         assert!(len > 0, 00);
-        assert!(len == vector::length(&owner_percentages), 00);
+        assert!(len == vector::length(&owner_shares), 00);
 
         let i = 0;
-        if (option::is_none(&launchpad_data.multi_owners)) {
-            let multi_owners_temp = vec_map::empty<address, u16>();
-             vec_map::insert(&mut multi_owners_temp, admin, 10_000);
+        if (option::is_none(&launchpad_data.co_owners)) {
+            let co_owners_temp = vec_map::empty<address, u16>();
+             vec_map::insert(&mut co_owners_temp, admin, 10_000);
             while (i < len) {
-                let owner_addr_temp = vector::pop_back(&mut owner_addr);
-                let owner_percent_temp = vector::pop_back(&mut owner_percentages);
-                let creator_share =  vec_map::get_mut(&mut multi_owners_temp, &admin);
-                *creator_share = *creator_share - owner_percent_temp;
-                vec_map::insert(&mut multi_owners_temp, owner_addr_temp, owner_percent_temp);
+                let owner_addr = vector::pop_back(&mut new_owners);
+                let owner_share = vector::pop_back(&mut owner_shares);
+                let creator_share =  vec_map::get_mut(&mut co_owners_temp, &admin);
+                *creator_share = *creator_share - owner_share;
+                vec_map::insert(&mut co_owners_temp, owner_addr, owner_share);
                 i = i + 1
             };
-            option::fill(&mut launchpad_data.multi_owners, multi_owners_temp)
+            option::fill(&mut launchpad_data.co_owners, co_owners_temp)
         } else {
             while (i < len) {
-                let multi_owners_temp = option::borrow_mut(&mut launchpad_data.multi_owners);
-                let creator_share =  vec_map::get_mut(multi_owners_temp, &admin);
+                let co_owners_temp = option::borrow_mut(&mut launchpad_data.co_owners);
+                let creator_share =  vec_map::get_mut(co_owners_temp, &admin);
 
-                let owner_addr_temp = vector::pop_back(&mut owner_addr);
-                let owner_percent_temp = vector::pop_back(&mut owner_percentages);
+                let owner_addr_temp = vector::pop_back(&mut new_owners);
+                let owner_percent_temp = vector::pop_back(&mut owner_shares);
 
                  *creator_share = *creator_share - owner_percent_temp;
                  assert!(*creator_share > 0,0);
-                let multi_owners_temp = option::borrow_mut(&mut launchpad_data.multi_owners);
-                vec_map::insert(multi_owners_temp, owner_addr_temp, owner_percent_temp);
+                let co_owners_temp = option::borrow_mut(&mut launchpad_data.co_owners);
+                vec_map::insert(co_owners_temp, owner_addr_temp, owner_percent_temp);
                 i = i + 1
             }
         };
-        let shares = option::borrow(&launchpad_data.multi_owners);
+        let shares = option::borrow(&launchpad_data.co_owners);
         assert_total_shares(shares)
     }
 
-    public entry fun increase_multi_owner_percentage(
+    public entry fun increase_co_owner_percentage(
         launchpad_data: &mut LaunchPadData,
         owner_addr: address,
-        owner_percentage: u16,
+        additional_share: u16,
         ctx: &mut TxContext
     ) {
         let admin = sender(ctx);
         assert!(launchpad_data.admin == admin, 0);
-        let multi_owners_temp = option::borrow_mut(&mut launchpad_data.multi_owners);
-        let creator_share =  vec_map::get_mut(multi_owners_temp, &admin);
-        assert!(*creator_share > owner_percentage,0);
-        *creator_share = *creator_share - owner_percentage;
-        let owner_share = vec_map::get_mut(multi_owners_temp, &owner_addr);
-        *owner_share = *owner_share + owner_percentage;
+        let co_owners_temp = option::borrow_mut(&mut launchpad_data.co_owners);
+        let creator_share =  vec_map::get_mut(co_owners_temp, &admin);
+        assert!(*creator_share > additional_share,0);
+        *creator_share = *creator_share - additional_share;
+        let owner_share = vec_map::get_mut(co_owners_temp, &owner_addr);
+        *owner_share = *owner_share + additional_share;
         
     }
 
-    public entry fun decrease_multi_owner_percentage(
+    public entry fun decrease_co_owner_percentage(
         launchpad_data: &mut LaunchPadData,
         owner_addr: address,
-        decrease_percent: u16,
+        decrease_share: u16,
         ctx: &mut TxContext
     ) {
         let admin = sender(ctx);
         assert!(launchpad_data.admin == admin, 0);
-        let multi_owners_temp = option::borrow_mut(&mut launchpad_data.multi_owners);
+        let co_owners_temp = option::borrow_mut(&mut launchpad_data.co_owners);
         
-        let owner_share =  vec_map::get_mut(multi_owners_temp, &owner_addr);
-        assert!(*owner_share > decrease_percent ,00);
-        *owner_share = *owner_share - decrease_percent;
+        let owner_share =  vec_map::get_mut(co_owners_temp, &owner_addr);
+        assert!(*owner_share >= decrease_share ,00);
+        *owner_share = *owner_share - decrease_share;
         if(*owner_share == 0){
-            let (_,_) = vec_map::remove(multi_owners_temp , &owner_addr);
+            let (_,_) = vec_map::remove(co_owners_temp , &owner_addr);
         };
-        let creator_share =  vec_map::get_mut(multi_owners_temp, &admin);
-        *creator_share = *creator_share + decrease_percent;
+        let creator_share =  vec_map::get_mut(co_owners_temp, &admin);
+        *creator_share = *creator_share + decrease_share;
        
     }
 
-    public entry fun remove_all_multi_owner(launchpad_data: &mut LaunchPadData, ctx: &mut TxContext) {
+    public entry fun remove_all_co_owners(launchpad_data: &mut LaunchPadData, ctx: &mut TxContext) {
         assert!(launchpad_data.admin == sender(ctx), 0);
-        let _ = option::extract(&mut launchpad_data.multi_owners);
+        let _ = option::extract(&mut launchpad_data.co_owners);
     }
     
 
@@ -246,21 +247,21 @@ module launchpad::moonpad {
         ctx: &mut TxContext
         ){
            assert!(launchpad_data.admin == sender(ctx), 0);
-           assert!(mint_cap.current + 1 <= mint_cap.max , 00 );   
+           assert!(mint_cap.current_minted + 1 <= mint_cap.max_mintable , 00 );   
            let nft = nft::new<Witness , CREATOR>(Witness {},name , url::new_unsafe(url) , description, ctx);
 
            if(!self_transfer){
              let nft_id = object::id(&nft);
 
-            vector::push_back(&mut launchpad_data.nfts, nft_id);
-            launchpad_data.total_deposited = launchpad_data.total_deposited + 1;
+            vector::push_back(&mut launchpad_data.nft_ids, nft_id);
+            launchpad_data.total_nfts_deposited = launchpad_data.total_nfts_deposited + 1;
             
             dof::add(&mut launchpad_data.id, nft_id, nft) 
            }else{
              transfer::public_transfer(nft , sender(ctx))
 
            };
-           mint_cap.current = mint_cap.current + 1 ;
+           mint_cap.current_minted = mint_cap.current_minted + 1 ;
              
     }
 
@@ -271,10 +272,18 @@ module launchpad::moonpad {
         paid : &mut Coin<SUI> ,
         ctx: &mut TxContext
         ){
-           assert!(!launchpad_data.public_sale_paused , 00);
-           assert!(launchpad_data.total_deposited > 0, 0);
-           let price = launchpad_data.price;
-           take_fee_and_transfer(launchpad_data ,nft_id, price , paid ,ctx)
+           assert!(!launchpad_data.is_public_sale_paused , 00);
+           assert!(launchpad_data.total_nfts_deposited > 0, 0);
+           let buyer = sender(ctx);
+           assert!(*table::borrow(&launchpad_data.user_purchase_counts , buyer) <= launchpad_data.max_nft_per_user , 00);
+           let price_per_nft = launchpad_data.price_per_nft;
+           if(!table::contains(&launchpad_data.user_purchase_counts , buyer)){
+              table::add(&mut launchpad_data.user_purchase_counts , buyer , 0);
+           };
+
+           let buyer_purchase_count  = table::borrow_mut(&mut launchpad_data.user_purchase_counts , buyer);
+           *buyer_purchase_count = *buyer_purchase_count + 1;
+           take_fee_and_transfer(launchpad_data ,nft_id, price_per_nft , paid ,ctx);
     }
 
      public entry fun buy_nft_pre_sale(
@@ -285,13 +294,21 @@ module launchpad::moonpad {
         ctx: &mut TxContext
         ){
            assert!(option::is_some(&launchpad_data.presale), 0);
+           assert!(launchpad_data.total_nfts_deposited > 0, 0);
+
            let presale_data = option::borrow_mut(&mut launchpad_data.presale);
-           assert!(!presale_data.pre_sale_paused, 0);
-           assert!(launchpad_data.total_deposited > 0, 0);
+           assert!(!presale_data.is_paused, 0);
+
+           let buyer = sender(ctx);
+           assert!(*table::borrow(&launchpad_data.user_purchase_counts , buyer) + 1 <= launchpad_data.max_nft_per_user , 00);
+
            let currentTime = clock::timestamp_ms(clock);
-           assert!(presale_data.expired_time >= currentTime, 0);
+           assert!(presale_data.end_time >= currentTime, 0);
            assert!(presale_data.start_time <= currentTime, 0);
-           take_fee_and_transfer(launchpad_data ,nft_id,presale_data.price_per_item , paid ,ctx) 
+
+            let buyer_purchase_count  = table::borrow_mut(&mut launchpad_data.user_purchase_counts , buyer);
+           *buyer_purchase_count = *buyer_purchase_count + 1;
+           take_fee_and_transfer(launchpad_data ,nft_id,presale_data.price_per_nft , paid ,ctx) 
     }
 
     public entry fun redeem_funds(
@@ -299,25 +316,25 @@ module launchpad::moonpad {
         ctx: &mut TxContext
     ){
          assert!(launchpad_data.admin == sender(ctx), 0);   
-         assert!(balance::value(&launchpad_data.fund_collected) > 0, 0);
-        let total_funds_collected_temp = balance::value(&launchpad_data.fund_collected);
+         assert!(balance::value(&launchpad_data.total_funds_collected) > 0, 0);
+        let total_funds_collected = balance::value(&launchpad_data.total_funds_collected);
 
-         if(option::is_some(&launchpad_data.multi_owners)){
-            let multi_owners = option::borrow_mut(&mut launchpad_data.multi_owners);
-            let len =  vec_map::size(multi_owners);
+         if(option::is_some(&launchpad_data.co_owners)){
+            let co_owners = option::borrow_mut(&mut launchpad_data.co_owners);
+            let len =  vec_map::size(co_owners);
             let i = 0;
              while (i < len){
-                 let (owner_addr,percent) = vec_map::get_entry_by_idx(multi_owners , i);
-                  let split_amount = total_funds_collected_temp * (*percent as u64) /100;
-                  let balance =  balance::split(&mut launchpad_data.fund_collected , split_amount);
+                 let (owner_addr,share) = vec_map::get_entry_by_idx(co_owners , i);
+                  let split_amount = total_funds_collected * (*share as u64) /10_000;
+                  let balance =  balance::split(&mut launchpad_data.total_funds_collected , split_amount);
                   transfer::public_transfer(coin::from_balance( balance,ctx) , *owner_addr);
                  i = i+ 1   
              };
          }else{
-            transfer::public_transfer(coin::from_balance( balance::withdraw_all(&mut launchpad_data.fund_collected),ctx) , sender(ctx))
+            transfer::public_transfer(coin::from_balance( balance::withdraw_all(&mut launchpad_data.total_funds_collected),ctx) , sender(ctx))
          }
-       
     }
+
     #[lint_allow(self_transfer)]
     fun take_fee_and_transfer(
         launchpad_data: &mut LaunchPadData ,
@@ -328,11 +345,11 @@ module launchpad::moonpad {
     ){
         assert!(coin::value<SUI>(paid) >= price_per_item , 0);
         let coin =  coin::split<SUI>(paid, price_per_item, ctx);
-        coin::put<SUI>( &mut launchpad_data.fund_collected, coin);
-        let (has , i) =  vector::index_of(&launchpad_data.nfts, &nft_id);
+        coin::put<SUI>( &mut launchpad_data.total_funds_collected, coin);
+        let (has , i) =  vector::index_of(&launchpad_data.nft_ids, &nft_id);
         assert!(has, 0);
-        let nft_id = vector::swap_remove(&mut launchpad_data.nfts ,i );
-        launchpad_data.total_deposited = launchpad_data.total_deposited - 1;
+        let nft_id = vector::swap_remove(&mut launchpad_data.nft_ids ,i );
+        launchpad_data.total_nfts_deposited = launchpad_data.total_nfts_deposited - 1;
         let nft : Nft<CREATOR>  =  dof::remove(&mut launchpad_data.id, nft_id) ;
         transfer::public_transfer(nft ,sender(ctx))
     }
@@ -371,7 +388,7 @@ module launchpad::moonpad {
             i = i + 1;
         };
 
-        assert!(bps_total == utils::bps(), 00);
+        assert!(bps_total == 10_000, 00);
     }
 
 }

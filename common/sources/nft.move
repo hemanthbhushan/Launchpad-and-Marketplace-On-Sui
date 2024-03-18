@@ -6,13 +6,8 @@ module common::nft {
 
     use sui::url::Url;
     use sui::event;
-    use sui::display::Display;
-    use sui::dynamic_field as df;
     use sui::object::{Self, ID, UID};
     use sui::tx_context::TxContext;
-
-    use common::witness::Witness as DelegatedWitness;
-    use common::frozen_publisher::{Self, FrozenPublisher};
     use common::utils;
     /// Witness used to authorize collection creation
     struct Witness has drop {}
@@ -67,39 +62,6 @@ module common::nft {
     public fun url<C>(nft: &Nft<C>): &Url {
         &nft.url
     }
-
- 
-    public fun set_name<C>(
-        _witness: DelegatedWitness<C>,
-        nft: &mut Nft<C>,
-        name: string::String,
-    ) {
-        nft.name = name
-    }
-
-    public fun set_url<C>(
-        _witness: DelegatedWitness<C>,
-        nft: &mut Nft<C>,
-        url: Url,
-    ) {
-        nft.url = url
-    }
-
-   // === Display standard ===
-
-    /// Creates a new `Display` with some default settings.
-    public fun new_display<C>(
-        _witness: DelegatedWitness<C>,
-        pub: &FrozenPublisher,
-        ctx: &mut TxContext,
-    ): Display<Nft<C>> {
-        let display =
-            frozen_publisher::new_display<Witness, Nft<C>>(Witness {}, pub, ctx);
-
-        display
-    }
-
-
     // === Test helpers ===
 
     #[test_only]
