@@ -37,4 +37,4 @@ This project is developed on the SUI Blockchain using SUI Move, serving as an NF
 - **Instructions**: Detailed instructions on deploying and interacting with the marketplace and launchpad modules will be provided separately.
 
 ### Note
-This README provides an overview of the project structure and functionality.It is not auidited or tested use it at your own risk
+This README provides an overview of the project structure and functionality.
