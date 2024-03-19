@@ -115,6 +115,9 @@ module common::collection {
     public fun get_receiver_address<C>(collection: &Collection<C>): address {
         collection.receiver
     }
+     public fun get_royality_percentage<C>(collection: &Collection<C>): u64 {
+        collection.royality
+    }
 
   
 }

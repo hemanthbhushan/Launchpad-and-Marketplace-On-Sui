@@ -206,7 +206,6 @@ module launchpad::moonpad {
         *creator_share = *creator_share - additional_share;
         let owner_share = vec_map::get_mut(co_owners_temp, &owner_addr);
         *owner_share = *owner_share + additional_share;
-        
     }
 
     public entry fun decrease_co_owner_percentage(

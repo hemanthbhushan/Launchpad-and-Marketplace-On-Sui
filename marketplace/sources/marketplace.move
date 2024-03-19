@@ -11,6 +11,7 @@ module marketplace::moonpad_marketplace {
     use sui::sui::SUI;
     use sui::balance::{Self, Balance};
     use sui::package;
+    use sui::coin;
 
     use common::nft::Nft;
     use common::collection::{Self ,Collection};
@@ -19,44 +20,31 @@ module marketplace::moonpad_marketplace {
         id: UID,
         owner: address,
         fee: u16,
-        fee_balance: Balance<SUI>,
-        collateralFee: u64,
+        fee_balance: Balance<SUI>
     }
 
-    // OTW
     struct MOONPAD_MARKETPLACE has drop {}
 
     struct Witness has drop {}
 
-
-    /// A single listing which contains the listed item and its price in [`Coin<C>`].
-    // Potential improvement: make each listing part of a smaller shared object (e.g. per type, per seller, etc.)
-    // store market details in the listing to prevent any need to interact with the Marketplace shared object?
     struct Listing<phantom T> has key, store {
         id: UID,
         item_id: ID,
         ask: u64, // Coin<C>
-        owner: address,
-        seller_wallet: Option<ID>,
+        owner: address
     }
 
     struct ListItemEvent has copy, drop {
-        /// ID of the `Nft` that was listed
         item_id: ID,
         ask: u64,
         auction: bool,
-        /// Type name of `Nft<C>` one-time witness `C`
-        /// Intended to allow users to filter by collections of interest.
         type_name: TypeName,
     }
 
     struct DelistItemEvent has copy, drop {
-        /// ID of the `Nft` that was listed
         item_id: ID,
         sale_price: u64,
-        sold: bool,
-        /// Type name of `Nft<C>` one-time witness `C`
-        /// Intended to allow users to filter by collections of interest.
+        sold : bool,
         type_name: TypeName,
     }
 
@@ -69,26 +57,24 @@ module marketplace::moonpad_marketplace {
             owner: tx_context::sender(ctx),
             fee: 0,
             fee_balance: balance::zero<SUI>(),
-            collateralFee: 0,
         };
         
         transfer::share_object(marketplace);
     }
-/// List an item at the Marketplace.
+
     public entry fun list<T>(
         marketplace: &mut Marketplace,
         item: Nft<T>,
         ask: u64,
         ctx: &mut TxContext
     ) {
-        list_and_get_id(marketplace, item, ask, option::none<ID>(), ctx);
+        list_and_get_id(marketplace, item, ask, ctx);
     }
 
     public fun list_and_get_id<T>(
         marketplace: &mut Marketplace,
         item: Nft<T>,
         ask: u64,
-        seller_wallet: Option<ID>,
         ctx: &mut TxContext
     ): ID {
         event::emit(ListItemEvent {
@@ -106,7 +92,6 @@ module marketplace::moonpad_marketplace {
             item_id,
             ask,
             owner: tx_context::sender(ctx),
-            seller_wallet,
         };
         let id = object::id(&listing); 
         dof::add(&mut marketplace.id, id, listing);
@@ -114,7 +99,23 @@ module marketplace::moonpad_marketplace {
         id
     }
 
-    
+    public entry fun delist<T>(
+        marketplace: &mut Marketplace,
+        listing_id: ID,
+        ask: u64,
+        ctx: &mut TxContext
+    ){
+        assert!(dof::exists_(&marketplace.id , listing_id),00);
+        let listing = dof::remove(&mut marketplace.id, listing_id);
+        let Listing<T> { id, item_id, ask : _, owner  } = listing;
+        assert!(owner  == tx_context::sender(ctx), 0);
+
+        object::delete(id);
+
+        let nft : Nft<T> = dof::remove(&mut marketplace.id, item_id);
+        transfer::public_transfer(nft,owner)
+    }
+
     public entry fun buy<T>(
         marketplace: &mut Marketplace,
         collection: &mut Collection<T>,
@@ -123,7 +124,7 @@ module marketplace::moonpad_marketplace {
         ctx: &mut TxContext
     ){
         let listing = dof::remove<ID, Listing<T>>(&mut marketplace.id, listing_id);
-        let Listing { id, item_id, ask, owner :_, seller_wallet : _ } = listing;
+        let Listing { id, item_id, ask, owner  } = listing;
         let item = dof::remove<ID, Nft<T>>(&mut marketplace.id, item_id);
         object::delete(id);
 
@@ -133,15 +134,17 @@ module marketplace::moonpad_marketplace {
             sold: true,
             type_name: type_name::get<T>(),
         });
-
+        let share = collection::get_royality_percentage<T>(collection);
+        let paid_amount = coin::value(&paid);
+        let split_amount = paid_amount * (share as u64) /10_000;
+        let receiver_coin =  coin::split(&mut paid , split_amount , ctx);
+        let fee_coin =  coin::split(&mut paid , (marketplace.fee as u64) , ctx);
         
-     
-        transfer::public_transfer(paid , collection::get_receiver_address<T>(collection));
+        coin::put<SUI>( &mut marketplace.fee_balance , fee_coin);
+        transfer::public_transfer(receiver_coin , collection::get_receiver_address<T>(collection));
+        transfer::public_transfer(paid ,owner );
         transfer::public_transfer(item , sender(ctx))
     }
-
-
-
 
     // getter functions for contracts to get info about our marketplace.
     public fun owner(
@@ -154,12 +157,6 @@ module marketplace::moonpad_marketplace {
         market: &Marketplace,
     ): u16 {
         market.fee
-    }
-
-    public fun collateralFee(
-        market: &Marketplace,
-    ): u64 {
-        market.collateralFee
     }
 
 }
