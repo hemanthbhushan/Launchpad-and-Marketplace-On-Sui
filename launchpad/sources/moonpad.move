@@ -235,8 +235,6 @@ module launchpad::moonpad {
         let _ = option::extract(&mut launchpad_data.co_owners);
     }
     
-
-
     public entry fun mint_nft_and_store_admin(
         launchpad_data: &mut LaunchPadData , 
         mint_cap : &mut MintCap,
@@ -271,17 +269,18 @@ module launchpad::moonpad {
         nft_id : ID ,
         paid : &mut Coin<SUI> ,
         ctx: &mut TxContext
-        ){
+        ) {
            assert!(!launchpad_data.is_public_sale_paused , 00);
            assert!(launchpad_data.total_nfts_deposited > 0, 0);
            let buyer = sender(ctx);
-           assert!(*table::borrow(&launchpad_data.user_purchase_counts , buyer) <= launchpad_data.max_nft_per_user , 00);
-           let price_per_nft = launchpad_data.price_per_nft;
-           if(!table::contains(&launchpad_data.user_purchase_counts , buyer)){
+         
+            if(!table::contains(&launchpad_data.user_purchase_counts , buyer)){
               table::add(&mut launchpad_data.user_purchase_counts , buyer , 0);
+           }else {
+              assert!(*table::borrow(&launchpad_data.user_purchase_counts , buyer) + 1 <= launchpad_data.max_nft_per_user , 00);
            };
-
-           let buyer_purchase_count  = table::borrow_mut(&mut launchpad_data.user_purchase_counts , buyer);
+           let price_per_nft = launchpad_data.price_per_nft; 
+            let buyer_purchase_count  = table::borrow_mut(&mut launchpad_data.user_purchase_counts , buyer);
            *buyer_purchase_count = *buyer_purchase_count + 1;
            take_fee_and_transfer(launchpad_data ,nft_id, price_per_nft , paid ,ctx);
     }
@@ -292,7 +291,7 @@ module launchpad::moonpad {
         paid : &mut Coin<SUI> ,
         clock: &Clock,
         ctx: &mut TxContext
-        ){
+        ) {
            assert!(option::is_some(&launchpad_data.presale), 0);
            assert!(launchpad_data.total_nfts_deposited > 0, 0);
 
@@ -300,7 +299,11 @@ module launchpad::moonpad {
            assert!(!presale_data.is_paused, 0);
 
            let buyer = sender(ctx);
-           assert!(*table::borrow(&launchpad_data.user_purchase_counts , buyer) + 1 <= launchpad_data.max_nft_per_user , 00);
+             if(!table::contains(&launchpad_data.user_purchase_counts , buyer)){
+              table::add(&mut launchpad_data.user_purchase_counts , buyer , 0);
+           }else {
+              assert!(*table::borrow(&launchpad_data.user_purchase_counts , buyer) + 1 <= launchpad_data.max_nft_per_user , 00);
+           };
 
            let currentTime = clock::timestamp_ms(clock);
            assert!(presale_data.end_time >= currentTime, 0);
@@ -314,21 +317,21 @@ module launchpad::moonpad {
     public entry fun redeem_funds(
         launchpad_data: &mut LaunchPadData , 
         ctx: &mut TxContext
-    ){
+    ) {
          assert!(launchpad_data.admin == sender(ctx), 0);   
-         assert!(balance::value(&launchpad_data.total_funds_collected) > 0, 0);
         let total_funds_collected = balance::value(&launchpad_data.total_funds_collected);
+         assert!(total_funds_collected > 0, 0);
 
          if(option::is_some(&launchpad_data.co_owners)){
             let co_owners = option::borrow_mut(&mut launchpad_data.co_owners);
             let len =  vec_map::size(co_owners);
             let i = 0;
-             while (i < len){
-                 let (owner_addr,share) = vec_map::get_entry_by_idx(co_owners , i);
-                  let split_amount = total_funds_collected * (*share as u64) /10_000;
-                  let balance =  balance::split(&mut launchpad_data.total_funds_collected , split_amount);
-                  transfer::public_transfer(coin::from_balance( balance,ctx) , *owner_addr);
-                 i = i+ 1   
+            while (i < len){
+                let (owner_addr,share) = vec_map::get_entry_by_idx(co_owners , i);
+                let split_amount = total_funds_collected * (*share as u64) /10_000;
+                let balance =  balance::split(&mut launchpad_data.total_funds_collected , split_amount);
+                transfer::public_transfer(coin::from_balance( balance,ctx) , *owner_addr);
+                i = i+ 1   
              };
          }else{
             transfer::public_transfer(coin::from_balance( balance::withdraw_all(&mut launchpad_data.total_funds_collected),ctx) , sender(ctx))
@@ -342,7 +345,7 @@ module launchpad::moonpad {
         price_per_item : u64 ,
         paid : &mut Coin<SUI> ,
         ctx: &mut TxContext 
-    ){
+    ) {
         assert!(coin::value<SUI>(paid) >= price_per_item , 0);
         let coin =  coin::split<SUI>(paid, price_per_item, ctx);
         coin::put<SUI>( &mut launchpad_data.total_funds_collected, coin);

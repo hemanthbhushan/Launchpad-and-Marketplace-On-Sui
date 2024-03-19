@@ -1,0 +1,18 @@
+[package]
+name = "launchpad_test_cases"
+edition = "2024.alpha"
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "mainnet-v1.16.2" }
+
+launchpad = { local = "../launchpad" }
+common = { local = "../common" }
+[addresses]
+launchpad_test_cases = "0x"
+common = "0xe64977a2450d759230e1c695d0e6aab3bc71f83aba9aeef94190881813c30c7c"
+ADMIN = "0xA"      # admin
+Admin2 = "0xB"   # whitelist admin
+Guard1 = "0xC"   # denylist admin
+Guard2 = "0xD"       # user
+User1 = "0xE" # mint admin
+User2 = "0xF"   # whitelist admin
+       

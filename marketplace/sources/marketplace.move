@@ -1,5 +1,3 @@
-
-
 module marketplace::moonpad_marketplace {
     use std::option::{Self, Option};
     use std::type_name::{Self, TypeName};
