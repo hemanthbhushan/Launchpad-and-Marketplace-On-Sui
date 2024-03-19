@@ -23,6 +23,19 @@ module marketplace::moonpad_marketplace {
         fee_balance: Balance<SUI>
     }
 
+   struct AuctionListing<phantom T: key + store> has key {
+        id: UID,
+        item_id: ID,
+        bid: Balance<SUI>,
+        collateral: Balance<SUI>,
+        min_bid: u64,
+        min_bid_increment: u64,
+        starts: u64,
+        expires: u64,
+        owner: address,
+        bidder: address
+    }
+    
     struct MOONPAD_MARKETPLACE has drop {}
 
     struct Witness has drop {}
@@ -30,7 +43,7 @@ module marketplace::moonpad_marketplace {
     struct Listing<phantom T> has key, store {
         id: UID,
         item_id: ID,
-        ask: u64, // Coin<C>
+        ask: u64,
         owner: address
     }
 
@@ -115,6 +128,19 @@ module marketplace::moonpad_marketplace {
         let nft : Nft<T> = dof::remove(&mut marketplace.id, item_id);
         transfer::public_transfer(nft,owner)
     }
+    public entry fun edit_ask<T>(
+        marketplace: &mut Marketplace,
+        listing_id: ID,
+        new_ask: u64,
+        ctx: &mut TxContext
+    ){
+        assert!(dof::exists_(&marketplace.id , listing_id),00);
+        let listing : &mut Listing<T> = dof::borrow_mut(&mut marketplace.id, listing_id);
+        let ask = &mut listing.ask;
+        assert!(listing.owner  == tx_context::sender(ctx), 0);
+        
+        *ask = new_ask;
+    }
 
     public entry fun buy<T>(
         marketplace: &mut Marketplace,
@@ -139,7 +165,7 @@ module marketplace::moonpad_marketplace {
         let split_amount = paid_amount * (share as u64) /10_000;
         let receiver_coin =  coin::split(&mut paid , split_amount , ctx);
         let fee_coin =  coin::split(&mut paid , (marketplace.fee as u64) , ctx);
-        
+
         coin::put<SUI>( &mut marketplace.fee_balance , fee_coin);
         transfer::public_transfer(receiver_coin , collection::get_receiver_address<T>(collection));
         transfer::public_transfer(paid ,owner );
